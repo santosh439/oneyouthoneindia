@@ -1,0 +1,56 @@
+name: CI
+
+# Runs on every pull request and on pushes to branches other than main.
+# Main is covered by deploy.yml, which runs the same checks before deploying.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Unit tests (knowledge base, RTI deadlines, AI prompt safety)
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Dependency vulnerabilities (fails on critical)
+        run: npm audit --omit=dev --audit-level=critical
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migrations and row level security tests
+        env:
+          PGURL: postgres://postgres:postgres@localhost:5432/postgres
+        run: bash scripts/test-db.sh
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
