@@ -1,0 +1,23 @@
+name: Link check
+
+# Tests every government website link shown on the site, every Monday and on demand.
+# A red run means a ministry or State moved or retired a page: update src/directory.js
+# (or src/knowledge/*.js) with the new official address. Does not block deployment.
+on:
+  schedule:
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check all government links
+        run: node scripts/check-links.mjs
