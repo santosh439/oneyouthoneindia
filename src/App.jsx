@@ -4,26 +4,32 @@ import {
   GraduationCap, HeartPulse, Construction, Droplets, Zap, ShieldAlert, Landmark, ShoppingBag, Trees, Baby, Wheat, IdCard, FileText, Siren, Scale, TrainFront, Car, Flame, Banknote, Mail, PiggyBank, Briefcase, Sprout, Receipt, House, Building2, Tractor, HeartHandshake, Smartphone, Phone, ExternalLink, ChevronDown, Navigation, LocateFixed, EyeOff, Eye, LogIn, LogOut, Gavel, HandCoins, Camera, Video, ImagePlus, Fingerprint, Trash2, Eraser, BadgeCheck, Hourglass, Mic, MicOff, Languages, AtSign, UserRound, Search, Plus, Megaphone,
   ThumbsUp, Flag, MapPin, Star, Sun, Moon, X, Check, Lock, Globe2, Sparkles, TrendingUp, ShieldCheck, User, AlertTriangle,
   MessageSquare, Loader2, ArrowRight, Users, CheckCircle2, Activity, Inbox,
+  Wifi, UtensilsCrossed, CreditCard, Stethoscope, School, Truck, Laptop, Wrench, Lightbulb, HelpingHand,
 } from "lucide-react";
-import { VOICE_LANGS, langName, CONTACT, CATEGORIES, CHANNELS, HELPLINES, MAP_FINDERS, mapsUrl, searchUrl, catById, STATES, GEO, districtsOf, tehsilsOf, citiesOf, SEVERITY, STATUSES, STATUS_TONE, timeAgo, findPersonalData, maskPersonalData } from "./data.js";
+import { VOICE_LANGS, langName, CONTACT, CATEGORIES, CHANNELS, HELPLINES, MAP_FINDERS, mapsUrl, searchUrl, catById, STATES, GEO, districtsOf, tehsilsOf, citiesOf, SEVERITY, STATUSES, STATUS_TONE, DONE_STATUSES, SECTORS, timeAgo, findPersonalData, maskPersonalData } from "./data.js";
 import { connect } from "./store.js";
+import { SITE } from "./cms.js";
+import InfoTabs from "./InfoTabs.jsx";
+import CityMeter from "./CityMeter.jsx";
+import { Menu as MenuIcon } from "lucide-react";
+const NAV_LINKS = [["About", "#about"], ["Explore", "#explore"], ["Know your rights", "/knowledge"], ["City survey", "/survey"], ["Government websites", "/directory", true], ["What we do", "#what-we-do", true], ["How we help", "#how-we-help", true], ["RTI assistant", "/knowledge#rti", true], ["Help near you", "#help", true], ["Official channels", "#channels", true]];
 import { LEGAL } from "./legal.js";
 import { prepare, renderPhoto, sha256, LIMITS } from "./evidence.js";
 
 const COVERAGE = { states: GEO.length, districts: GEO.reduce((n, s) => n + s.districts.length, 0), tehsils: GEO.reduce((n, s) => n + s.districts.reduce((m, d) => m + d.tehsils.length, 0), 0), cities: GEO.reduce((n, s) => n + s.cities.length, 0) };
-const ICONS = { GraduationCap, HeartPulse, Construction, Droplets, Zap, ShieldAlert, Landmark, ShoppingBag, Trees, Baby, Wheat, IdCard, FileText, Siren, Scale, TrainFront, Car, Flame, Banknote, Mail, PiggyBank, Briefcase, Sprout, Receipt, House, Building2, Tractor, HeartHandshake, Smartphone, HandCoins };
+const ICONS = { Wifi, UtensilsCrossed, CreditCard, Stethoscope, School, Truck, Laptop, Wrench, GraduationCap, HeartPulse, Construction, Droplets, Zap, ShieldAlert, Landmark, ShoppingBag, Trees, Baby, Wheat, IdCard, FileText, Siren, Scale, TrainFront, Car, Flame, Banknote, Mail, PiggyBank, Briefcase, Sprout, Receipt, House, Building2, Tractor, HeartHandshake, Smartphone, HandCoins };
 const CatIcon = ({ id, ...p }) => { const C = ICONS[catById(id).icon] || Landmark; return <C aria-hidden="true" {...p} />; };
 
 function Logo() {
   return (
     <span className="flex items-center gap-2.5">
-      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true">
+      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true" className="h-8 w-8 sm:h-9 sm:w-9">
         <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FF7A2F" /><stop offset=".5" stopColor="#3B3FD8" /><stop offset="1" stopColor="#13A86B" /></linearGradient></defs>
         <path d="M20 3c-7.7 0-14 6-14 13.6C6 26.4 20 37 20 37s14-10.6 14-20.4C34 9 27.7 3 20 3z" fill="url(#lg)" />
         <path d="M13 13.5h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-7.5L15 27v-3.5h-2a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z" fill="#fff" />
         <circle cx="16" cy="18.5" r="1.4" fill="#3B3FD8" /><circle cx="20" cy="18.5" r="1.4" fill="#3B3FD8" /><circle cx="24" cy="18.5" r="1.4" fill="#3B3FD8" />
       </svg>
-      <span className="font-display text-[15px] font-extrabold leading-none tracking-[-0.03em] sm:text-[19px]">OneYouth<span className="bg-gradient-to-r from-saffron via-indigo to-leaf bg-clip-text text-transparent">OneIndia</span></span>
+      <span className="font-display text-[14px] font-extrabold leading-none tracking-[-0.03em] sm:text-[19px]">OneYouth<span className="bg-gradient-to-r from-saffron via-indigo to-leaf bg-clip-text text-transparent">OneIndia</span></span>
     </span>
   );
 }
@@ -160,7 +166,33 @@ function VoiceTyping({ lang, setLang, onText, translate }) {
 const Field = ({ label, id, error, children }) => (
   <div><label htmlFor={id} className="mb-1.5 block text-[13px] font-semibold">{label}</label>{children}{error && <p className="mt-1 text-[12.5px] text-ruby">{error}</p>}</div>
 );
-function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
+/* Organisation search against the published directory; unknown names can be suggested for staff verification. */
+function OrgPicker({ id, orgs, sector, value, verified, picked, suggest, input, onType, onPick, onSuggest, placeholder }) {
+  const [list, setList] = useState([]);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!orgs?.searchOrgs || picked) return;
+    let live = true; const t = setTimeout(() => orgs.searchOrgs(value, sector).then((r) => live && setList(r)).catch(() => live && setList([])), 220);
+    return () => { live = false; clearTimeout(t); };
+  }, [value, sector, picked]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="relative">
+      <input id={id} role="combobox" aria-expanded={open && list.length > 0} aria-controls={`${id}-list`} aria-autocomplete="list" className={input} value={value} placeholder={placeholder} autoComplete="off"
+        onChange={(e) => { onType(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {picked && <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-leaf"><BadgeCheck size={14} />{verified ? "Verified organisation from our directory" : "From our directory"}</p>}
+      {open && list.length > 0 && !picked && (
+        <ul id={`${id}-list`} role="listbox" className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-2xl border hair2 bg-card p-1 shadow-2xl">
+          {list.map((o) => <li key={o.id} role="option" aria-selected="false"><button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(o); setOpen(false); }} className="focusable flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-[13.5px] hover:bg-raised"><span className="min-w-0 flex-1 truncate font-semibold">{o.name}</span>{o.verified && <BadgeCheck size={14} className="shrink-0 text-leaf" aria-label="Verified" />}<span className="shrink-0 text-[11.5px] text-faint">{[o.city, o.state].filter(Boolean).join(", ")}</span></button></li>)}
+        </ul>
+      )}
+      {!picked && value.trim().length >= 2 && orgs?.suggestOrg && (
+        <label className="mt-2 flex cursor-pointer items-start gap-2 text-[12.5px] text-mute"><input type="checkbox" checked={suggest} onChange={(e) => onSuggest(e.target.checked)} className="mt-0.5 h-4 w-4 accent-indigo" />Not in our directory yet. Suggest it so our team can verify and add it (it will show as unverified until then).</label>
+      )}
+    </div>
+  );
+}
+
+function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample, orgs }) {
   const [catQ, setCatQ] = useState("");
   const [items, setItems] = useState([]);
   const [lang, setLang] = useState(() => { try { return localStorage.getItem("oyoi-lang") || "hi-IN"; } catch { return "hi-IN"; } });
@@ -171,7 +203,7 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
     if (!f.body.trim()) return;
     setTBusy(true);
     try {
-      const { text } = await sample(`Translate this citizen complaint from ${langName(lang)} into clear, neutral English. Keep facts, places and numbers exactly. Reply with only the translation.\n\n${f.body}`, { cache: false });
+      const { text } = await sample(`Translate this citizen feedback from ${langName(lang)} into clear, neutral English. Keep facts, places and numbers exactly. Reply with only the translation.\n\n${f.body}`, { cache: false });
       setF((s) => ({ ...s, body: `${s.body.trim()}\n\nEnglish: ${text.trim()}` }));
     } catch { /* ignore */ }
     setTBusy(false);
@@ -190,7 +222,7 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
       try { const it = await prepare(file); setItems((x) => [...x, it]); } catch (e) { setPickErr(e.message); }
     }
   };
-  const [f, setF] = useState({ type: "issue", cat: "roads", sub: "", entity: "", city: "", state: "Karnataka", district: "", tehsil: "", rating: 0, severity: "Medium", title: "", body: "", visibility: "public", anon: false, agree: false });
+  const [f, setF] = useState({ type: "issue", cat: "roads", sub: "", entity: "", city: "", state: "Karnataka", district: "", tehsil: "", rating: 0, severity: "Medium", title: "", body: "", visibility: "public", anon: false, agree: false , sector: "government", organizationId: null, orgVerified: false, suggestOrg: true, experienceDate: new Date().toISOString().slice(0, 10), serviceLocation: "", suggestion: ""});
   const [err, setErr] = useState({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
@@ -205,6 +237,7 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
     if (f.type === "review" && !f.rating) e.rating = "Choose a rating";
     if (f.title.trim().length < 6) e.title = "Add a short headline";
     if (f.body.trim().length < 20) e.body = "Describe what happened in at least 20 characters";
+    if (f.experienceDate && f.experienceDate > new Date().toISOString().slice(0, 10)) e.experienceDate = "The date cannot be in the future";
     if (!f.agree) e.agree = "Please confirm the guidelines";
     setErr(e);
     if (Object.keys(e).length) return;
@@ -219,7 +252,9 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
         evidence.push({ id: it.id, kind: it.kind, ref, sha256: hash, size: it.blob.size, w: it.w || null, h: it.h || null, duration: it.duration ? Math.round(it.duration) : null, blurred: (it.boxes || []).length, audience, createdAt: new Date().toISOString() });
       }
       setProgress("");
-      const p = await onSubmit({ evidence, lang: lang !== "en-IN" ? lang : null, type: f.type, cat: f.cat, sub: f.sub, entity: f.entity.trim(), city: f.city.trim(), state: f.state, district: f.district, tehsil: f.tehsil, rating: f.type === "review" ? f.rating : null, severity: f.type === "issue" ? f.severity : null, title: maskPersonalData(f.title.trim()), body: maskPersonalData(f.body.trim()), visibility: f.visibility, anon: f.anon });
+      let organizationId = f.organizationId;
+      if (!organizationId && f.suggestOrg && orgs?.suggestOrg && f.entity.trim().length >= 2) { try { organizationId = await orgs.suggestOrg({ name: f.entity, sector: f.sector, category: f.cat, state: f.state, city: f.city }); } catch { organizationId = null; } }
+      const p = await onSubmit({ sector: f.sector, organizationId, experienceDate: f.experienceDate || null, serviceLocation: f.serviceLocation.trim(), suggestion: f.suggestion.trim(), evidence, lang: lang !== "en-IN" ? lang : null, type: f.type, cat: f.cat, sub: f.sub, entity: f.entity.trim(), city: f.city.trim(), state: f.state, district: f.district, tehsil: f.tehsil, rating: f.type === "review" ? f.rating : null, severity: f.type === "issue" ? f.severity : null, title: maskPersonalData(f.title.trim()), body: maskPersonalData(f.body.trim()), visibility: f.visibility, anon: f.anon });
       setDone(p);
     } catch (e2) { setProgress(""); setErr({ submit: e2?.message || "Could not save. Please try again." }); }
     setBusy(false);
@@ -227,31 +262,40 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
   const input = "focusable h-11 w-full rounded-xl border hair2 bg-raised px-3.5 text-[14.5px] outline-none transition focus:border-indigo";
   return (
     <motion.div className="fixed inset-0 z-[60] flex items-end justify-center bg-ink/40 p-0 backdrop-blur-sm sm:items-center sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.div role="dialog" aria-label="Share your voice" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onMouseDown={(e) => e.stopPropagation()}
+      <motion.div role="dialog" aria-label="Share Your Experience" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onMouseDown={(e) => e.stopPropagation()}
         className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] bg-card shadow-2xl sm:rounded-[28px]" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <header className="flex items-center justify-between border-b hair px-6 py-4">
-          <h2 className="font-display text-[22px] font-bold tracking-[-0.02em]">{done ? "Thank you for speaking up" : "Share your voice"}</h2>
+          <h2 className="font-display text-[22px] font-bold tracking-[-0.02em]">{done ? "Thank you for speaking up" : "Share Your Experience"}</h2>
           <button onClick={onClose} className="focusable rounded-full p-2 text-mute hover:bg-raised" aria-label="Close"><X size={20} /></button>
         </header>
         {done ? (
           <div className="flex flex-col items-center gap-4 px-8 py-12 text-center">
             <motion.span initial={{ scale: 0.4, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-saffron via-indigo to-leaf text-white"><Check size={38} strokeWidth={3} /></motion.span>
-            <p className="font-display text-[26px] font-bold">{done.visibility === "private" ? "Private feedback saved" : "Your voice is live"}</p>
-            <p className="max-w-md text-[15px] text-mute">{done.visibility === "private" ? "Only you can see it in My activity. In the full platform it goes straight to the organisation." : "Others can now support it with Me too. Track its status as it moves from Open to Resolved."}</p>
-            <button onClick={onClose} className="focusable mt-2 inline-flex h-11 items-center gap-2 rounded-full bg-ink px-6 text-[14.5px] font-semibold text-bg">Done</button>
+            <p className="font-display text-[26px] font-bold">{done.refNo ? "Feedback received" : done.visibility === "private" ? "Private feedback saved" : "Your voice is live"}</p>
+            {done.refNo && <p className="rounded-full bg-raised px-4 py-1.5 font-mono text-[14px] font-bold">Feedback Reference ID: {done.refNo}</p>}
+            <p className="max-w-md text-[15px] text-mute">{done.refNo ? (done.visibility === "private" ? "Saved privately. Only you and the review team can see it." : "A moderator reviews it before it appears publicly. Track its status and responses in your dashboard.") : done.visibility === "private" ? "Only you can see it in My activity. In the full platform it goes straight to the organisation." : "Others can now support it with Me too. Track its status as it moves from Open to Resolved."}</p>
+            <div className="mt-2 flex flex-wrap justify-center gap-2">{done.refNo && <a href="/dashboard" className="focusable inline-flex h-11 items-center gap-2 rounded-full bg-indigo px-6 text-[14.5px] font-semibold text-white">Track Your Feedback</a>}<button onClick={onClose} className="focusable inline-flex h-11 items-center gap-2 rounded-full bg-ink px-6 text-[14.5px] font-semibold text-bg">Done</button></div>
           </div>
         ) : (
           <div className="space-y-5 overflow-y-auto px-6 py-6">
             {!canWrite && <p className="rounded-xl bg-saffron/10 p-3 text-[13px] text-ink">You can read everything here. Posting needs Contributor access to this page.</p>}
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Government or private sector">
+              {SECTORS.map(([k, l, d]) => (
+                <button key={k} type="button" role="radio" aria-checked={f.sector === k} onClick={() => setF((s) => ({ ...s, sector: k, cat: CATEGORIES.find((c) => c.sector === k)?.id || s.cat, sub: "", organizationId: null, orgVerified: false }))}
+                  className={`focusable flex items-start gap-3 rounded-2xl border p-3.5 text-left transition ${f.sector === k ? "border-indigo bg-indigo/5" : "hair2"}`}>
+                  {k === "government" ? <Landmark size={19} className={f.sector === k ? "text-indigo" : "text-mute"} /> : <ShoppingBag size={19} className={f.sector === k ? "text-indigo" : "text-mute"} />}
+                  <span><span className="block text-[14px] font-bold">{l}</span><span className="text-[12px] text-mute">{d}</span></span>
+                </button>))}
+            </div>
             <div className="grid grid-cols-2 gap-2 rounded-2xl bg-raised p-1.5" role="radiogroup" aria-label="What do you want to share">
-              {[["issue", "Report an issue", AlertTriangle], ["review", "Write a review", Star]].map(([k, l, I]) => (
+              {[["issue", "Needs attention", AlertTriangle], ["review", "Rate a service", Star]].map(([k, l, I]) => (
                 <button key={k} role="radio" aria-checked={f.type === k} onClick={() => set("type", k)} className={`focusable flex h-11 items-center justify-center gap-2 rounded-xl text-[14px] font-semibold transition ${f.type === k ? "bg-card shadow" : "text-mute"}`}><I size={16} />{l}</button>
               ))}
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between gap-3"><p className="text-[13px] font-semibold">Category</p><label htmlFor="c-q" className="sr-only">Find a category</label><input id="c-q" value={catQ} onChange={(e) => setCatQ(e.target.value)} placeholder="Find a category" className="focusable h-9 w-44 rounded-full border hair2 bg-raised px-3.5 text-[13px] outline-none" /></div>
               <div className="grid max-h-[232px] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-                {CATEGORIES.filter((c) => (c.name + c.hint + c.subs.join(" ")).toLowerCase().includes(catQ.toLowerCase())).map((c) => (
+                {CATEGORIES.filter((c) => c.sector === f.sector && (c.name + c.hint + c.subs.join(" ")).toLowerCase().includes(catQ.toLowerCase())).map((c) => (
                   <button key={c.id} onClick={() => setF((s) => ({ ...s, cat: c.id, sub: "" }))} aria-pressed={f.cat === c.id} className={`focusable flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-[12.5px] font-semibold leading-tight transition ${f.cat === c.id ? "border-transparent text-white" : "hair2 hover:bg-raised"}`} style={f.cat === c.id ? { background: c.color } : undefined}>
                     <CatIcon id={c.id} size={17} className="shrink-0" />{c.name}
                   </button>
@@ -260,7 +304,11 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
             </div>
             <Field label="Type of place or service" id="c-sub"><select id="c-sub" className={input} value={f.sub} onChange={(e) => set("sub", e.target.value)}><option value="">Choose one (optional)</option>{catById(f.cat).subs.map((x) => <option key={x}>{x}</option>)}<option>Other</option></select></Field>
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="sm:col-span-3"><Field label="Place, service or product" id="c-e" error={err.entity}><input id="c-e" className={input} value={f.entity} onChange={(e) => set("entity", e.target.value)} placeholder="e.g. City General Hospital, MG Road, Ward 12 water supply" /></Field></div>
+              <div className="sm:col-span-3"><Field label={f.sector === "private" ? "Company or service provider" : "Department, office or public service"} id="c-e" error={err.entity}><OrgPicker id="c-e" orgs={orgs} sector={f.sector} value={f.entity} verified={f.orgVerified} picked={!!f.organizationId} suggest={f.suggestOrg} input={input}
+                onType={(v) => setF((s) => ({ ...s, entity: v, organizationId: null, orgVerified: false }))} onPick={(o) => setF((s) => ({ ...s, entity: o.name, organizationId: o.id, orgVerified: o.verified }))} onSuggest={(v) => set("suggestOrg", v)}
+                placeholder={f.sector === "private" ? "e.g. your broadband provider, a restaurant, a bank" : "e.g. City General Hospital, Ward 12 water supply, RTO office"} /></Field></div>
+              <div className="sm:col-span-2"><Field label="Service location (optional)" id="c-loc"><input id="c-loc" className={input} value={f.serviceLocation} onChange={(e) => set("serviceLocation", e.target.value)} maxLength={160} placeholder="e.g. branch, ward, station or outlet" /></Field></div>
+              <Field label="Date of experience" id="c-dt" error={err.experienceDate}><input id="c-dt" type="date" className={input} value={f.experienceDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set("experienceDate", e.target.value)} /></Field>
               <Field label="State or union territory" id="c-s"><select id="c-s" className={input} value={f.state} onChange={(e) => setF((s) => ({ ...s, state: e.target.value, district: "", tehsil: "" }))}>{STATES.map((s) => <option key={s}>{s}</option>)}</select></Field>
               <Field label="District" id="c-d" error={err.district}><select id="c-d" className={input} value={f.district} onChange={(e) => setF((s) => ({ ...s, district: e.target.value, tehsil: "" }))}><option value="">Choose district</option>{districtsOf(f.state).map((d) => <option key={d.code}>{d.name}</option>)}</select></Field>
               <Field label="Tehsil (optional)" id="c-th"><select id="c-th" className={input} value={f.tehsil} onChange={(e) => set("tehsil", e.target.value)} disabled={!f.district}><option value="">{f.district ? "Choose tehsil" : "Choose district first"}</option>{tehsilsOf(f.state, f.district).map((t) => <option key={t}>{t}</option>)}</select></Field>
@@ -277,6 +325,7 @@ function Composer({ onClose, onSubmit, canWrite, upload, canUpload, sample }) {
             )}
             <Field label="Headline" id="c-t" error={err.title}><input id="c-t" className={input} value={f.title} onChange={(e) => set("title", e.target.value)} maxLength={90} placeholder={f.type === "issue" ? "e.g. Deep pothole near the bus stop" : "e.g. Caring staff in the paediatric ward"} /></Field>
             <Field label="What happened? Type or speak in your language" id="c-b" error={err.body}><VoiceTyping lang={lang} setLang={setLang} onText={addSpoken} translate={translate} /><textarea id="c-b" dir="auto" rows={4} className={`${input} h-auto py-3`} value={f.body} onChange={(e) => set("body", e.target.value)} maxLength={1200} placeholder="Describe facts: what, where and when. Avoid personal attacks." /></Field>
+            <Field label="Suggested improvement (optional)" id="c-sg"><textarea id="c-sg" rows={2} className={`${input} h-auto py-3`} value={f.suggestion} onChange={(e) => set("suggestion", e.target.value)} maxLength={1000} placeholder="What would make this better? Constructive ideas help organisations act." /></Field>
             <div className="rounded-2xl border hair2 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><p className="flex items-center gap-2 text-[14px] font-bold"><Camera size={17} className="text-saffron" />Evidence (optional)</p><p className="mt-0.5 text-[12.5px] text-mute">Up to {LIMITS.photos} photos and 1 video ({LIMITS.videoSeconds} seconds, {LIMITS.videoMB} MB). Photos lose hidden location data automatically.</p></div>
@@ -363,26 +412,27 @@ function ChannelSheet({ cat, onClose }) {
 }
 
 /* ---------------- Post card ---------------- */
-function PostCard({ p, status, metoo, mine, flagged, onToggle, onStatus, isAdmin, name, onChannel, hidden, response, evStatus, resolve, me, onOpenMedia }) {
+function PostCard({ p, status, metoo, mine, flagged, onToggle, onStatus, isAdmin, name, onChannel, hidden, response, evStatus, resolve, me, onOpenMedia, org, orgReplies = [], helpful = 0, helpfulMine = false }) {
   const [open, setOpen] = useState(false);
   const c = catById(p.cat);
-  const st = status || "Open";
+  const st = status || "Submitted";
   return (
     <motion.article layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-3xl border hair bg-card p-5 shadow-[0_1px_0_rgba(0,0,0,0.02)] transition hover:shadow-[0_18px_50px_-24px_rgba(30,28,90,0.35)] md:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold text-white" style={{ background: c.color }}><CatIcon id={p.cat} size={13} />{c.name}</span>
-        <span className="rounded-full bg-raised px-2.5 py-1 text-[12px] font-semibold text-mute">{p.type === "issue" ? "Issue" : "Review"}</span>
+        <span className="rounded-full bg-raised px-2.5 py-1 text-[12px] font-semibold text-mute">{p.type === "issue" ? "Needs attention" : "Review"}</span>
         {p.sub && <span className="rounded-full bg-raised px-2.5 py-1 text-[12px] text-mute">{p.sub}</span>}
         {p.lang && <span className="inline-flex items-center gap-1 rounded-full bg-indigo/10 px-2.5 py-1 text-[12px] font-semibold text-indigo"><Languages size={12} />{langName(p.lang)}</span>}
-        {p.sample && <span className="rounded-full border hair2 px-2.5 py-1 text-[11.5px] text-faint">Sample</span>}
+        <span className="rounded-full bg-raised px-2.5 py-1 text-[12px] font-semibold text-mute">{p.sector === "private" ? "Consumer Experience" : "Public Service"}</span>
         {hidden && <span className="inline-flex items-center gap-1 rounded-full bg-ruby/10 px-2.5 py-1 text-[11.5px] font-bold text-ruby"><EyeOff size={12} />Hidden from public</span>}
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ color: STATUS_TONE[st], background: `${STATUS_TONE[st]}1A` }}>{st === "Resolved" ? <CheckCircle2 size={13} /> : <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_TONE[st] }} />}{st}</span>
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ color: STATUS_TONE[st], background: `${STATUS_TONE[st]}1A` }}>{DONE_STATUSES.includes(st) ? <CheckCircle2 size={13} /> : <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_TONE[st] }} />}{st}</span>
       </div>
       <h3 className="mt-3 font-display text-[19px] font-bold leading-snug tracking-[-0.01em]">{p.title}</h3>
-      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mute"><span className="font-semibold text-ink">{p.entity}</span><span className="flex items-center gap-1"><MapPin size={13} />{[p.city, p.tehsil, p.district, p.state].filter(Boolean).join(", ")}</span></p>
+      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-mute"><span className="inline-flex items-center gap-1 font-semibold text-ink">{org?.name || p.entity}{org?.verified && <BadgeCheck size={14} className="text-leaf" aria-label="Verified organisation" />}</span>{p.serviceLocation && <span>{p.serviceLocation}</span>}<span className="flex items-center gap-1"><MapPin size={13} />{[p.city, p.tehsil, p.district, p.state].filter(Boolean).join(", ")}</span></p>
       <div className="mt-3">{p.type === "review" ? <Stars value={p.rating} /> : <SeverityBar level={p.severity || "Medium"} />}</div>
       <p dir="auto" className={`mt-3 whitespace-pre-line text-[14.5px] leading-relaxed text-ink/85 ${open ? "" : "line-clamp-3"}`}>{p.body}</p>
       {p.body.length > 180 && <button onClick={() => setOpen(!open)} className="focusable mt-1 rounded text-[13px] font-semibold text-indigo">{open ? "Show less" : "Read more"}</button>}
+      {p.suggestion && <p className="mt-3 flex items-start gap-2 rounded-2xl bg-sun/10 p-3 text-[13.5px]"><Lightbulb size={16} className="mt-0.5 shrink-0 text-sun" /><span><b>Suggested improvement:</b> {p.suggestion}</span></p>}
       {(() => {
         const own = me && (p.ownerId || p.authorId) === me;
         const ev = (p.evidence || []).map((e) => ({ ...e, st: evStatus[e.id] || "pending" })).filter((e) => isAdmin || own || (e.st === "approved" && e.audience !== "moderators"));
@@ -396,16 +446,22 @@ function PostCard({ p, status, metoo, mine, flagged, onToggle, onStatus, isAdmin
           </div>
         );
       })()}
+      {orgReplies.map((r) => (
+        <div key={r.id} className="mt-4 rounded-2xl border-l-4 border-indigo bg-indigo/[0.06] p-4">
+          <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-bold text-indigo"><BadgeCheck size={14} />Response from {org?.name || "the organisation"}<span className="font-normal text-mute">· verified representative · {timeAgo(r.created_at)}</span></p>
+          <p className="mt-1.5 whitespace-pre-line text-[14px] leading-relaxed">{r.body}</p>
+        </div>
+      ))}
       {response?.text && (
         <div className="mt-4 rounded-2xl border-l-4 border-leaf bg-leaf/[0.07] p-4">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-leaf"><ShieldCheck size={14} />Official response{response.at ? ` · ${timeAgo(response.at)}` : ""}</p>
+          <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-leaf"><ShieldCheck size={14} />Response from One Youth One India{response.at ? ` · ${timeAgo(response.at)}` : ""}</p>
           <p className="mt-1.5 whitespace-pre-line text-[14px] leading-relaxed">{response.text}</p>
         </div>
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t hair pt-4">
         <span className="mr-auto flex items-center gap-2 text-[12.5px] text-mute">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-raised">{p.anon || !name ? <ShieldCheck size={14} className="text-leaf" /> : <User size={14} />}</span>
-          {p.anon ? "Citizen" : name || (p.sample ? "Community" : "Member")} · {timeAgo(p.createdAt)}
+          {p.anon ? "Citizen" : name || "Member"} · {timeAgo(p.createdAt)}
         </span>
         <a href={mapsUrl(p.entity, [p.city, p.district, p.state].filter(Boolean).join(", "))} target="_blank" rel="noopener noreferrer" className="focusable inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold text-mute hover:bg-raised"><MapPin size={14} />Map</a>
         {p.type === "issue" && <button onClick={() => onChannel(p.cat)} className="focusable inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold text-leaf hover:bg-leaf/10"><Landmark size={14} />Official channel</button>}
@@ -414,6 +470,7 @@ function PostCard({ p, status, metoo, mine, flagged, onToggle, onStatus, isAdmin
             <select value={st} onChange={(e) => onStatus(p.id, e.target.value)} className="focusable h-9 rounded-full border hair2 bg-raised px-3 text-[12.5px] font-semibold">{STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
           </label>
         )}
+        {p.type === "review" && <button onClick={() => onToggle("helpful", p.id)} aria-pressed={helpfulMine} className={`focusable inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold transition ${helpfulMine ? "bg-leaf/10 text-leaf" : "text-mute hover:bg-raised"}`}><HelpingHand size={14} />Helpful{helpful ? ` · ${helpful}` : ""}</button>}
         <button onClick={() => onToggle("flags", p.id)} aria-pressed={flagged} className={`focusable inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold transition ${flagged ? "bg-ruby/10 text-ruby" : "text-mute hover:bg-raised"}`} title="Report for review"><Flag size={14} />{flagged ? "Reported" : "Report"}</button>
         <motion.button whileTap={{ scale: 0.92 }} onClick={() => onToggle("metoo", p.id)} aria-pressed={mine} className={`focusable inline-flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-bold transition ${mine ? "bg-indigo text-white" : "bg-indigo/10 text-indigo hover:bg-indigo/15"}`}><ThumbsUp size={15} className={mine ? "fill-white" : ""} />Me too<span className="tab">{metoo || 0}</span></motion.button>
       </div>
@@ -450,9 +507,9 @@ function ModerationSheet({ posts, votes, status, hidden, responses, store, onClo
   const [tab, setTab] = useState("evidence");
   const [drafts, setDrafts] = useState({});
   const pendingEv = posts.flatMap((p) => (p.evidence || []).map((e) => ({ ...e, post: p }))).filter((e) => !evStatus[e.id]);
-  const list = [...posts].filter((p) => tab === "all" || (tab === "reported" ? (votes.flags[p.id] || 0) > 0 : tab === "hidden" ? hidden[p.id] : (status[p.id] || "Open") !== "Resolved"))
+  const list = [...posts].filter((p) => tab === "all" || (tab === "reported" ? (votes.flags[p.id] || 0) > 0 : tab === "hidden" ? hidden[p.id] : !DONE_STATUSES.includes(status[p.id] || "Submitted")))
     .sort((a, b) => (votes.flags[b.id] || 0) - (votes.flags[a.id] || 0) || new Date(b.createdAt) - new Date(a.createdAt));
-  const counts = { evidence: pendingEv.length, reported: posts.filter((p) => (votes.flags[p.id] || 0) > 0).length, open: posts.filter((p) => (status[p.id] || "Open") !== "Resolved").length, hidden: posts.filter((p) => hidden[p.id]).length, all: posts.length };
+  const counts = { evidence: pendingEv.length, reported: posts.filter((p) => (votes.flags[p.id] || 0) > 0).length, open: posts.filter((p) => !DONE_STATUSES.includes(status[p.id] || "Submitted")).length, hidden: posts.filter((p) => hidden[p.id]).length, all: posts.length };
   return (
     <Sheet title="Moderation dashboard" onClose={onClose} wide>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -489,7 +546,7 @@ function ModerationSheet({ posts, votes, status, hidden, responses, store, onClo
             <p className="mt-2 line-clamp-2 text-[13.5px] text-ink/80">{p.body}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <label className="sr-only" htmlFor={`ms-${p.id}`}>Status</label>
-              <select id={`ms-${p.id}`} value={status[p.id] || "Open"} onChange={(e) => store.setStatus(p.id, e.target.value, status)} className="focusable h-9 rounded-full border hair2 bg-raised px-3 text-[12.5px] font-semibold">{STATUSES.map((x) => <option key={x}>{x}</option>)}</select>
+              <select id={`ms-${p.id}`} value={status[p.id] || "Submitted"} onChange={(e) => store.setStatus(p.id, e.target.value, status)} className="focusable h-9 rounded-full border hair2 bg-raised px-3 text-[12.5px] font-semibold">{STATUSES.map((x) => <option key={x}>{x}</option>)}</select>
               <button onClick={() => store.setHidden(p.id, !hidden[p.id], hidden)} className={`focusable inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-bold ${hidden[p.id] ? "bg-leaf/10 text-leaf" : "bg-ruby/10 text-ruby"}`}>{hidden[p.id] ? <><Eye size={14} />Restore</> : <><EyeOff size={14} />Hide</>}</button>
             </div>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -690,13 +747,15 @@ function HelpNearYou() {
 export default function App() {
   const [store, setStore] = useState(null);
   const [posts, setPosts] = useState([]);
-  const [votes, setVotes] = useState({ metoo: {}, flags: {}, mine: { metoo: [], flags: [] } });
+  const [votes, setVotes] = useState({ metoo: {}, flags: {}, helpful: {}, mine: { metoo: [], flags: [], helpful: [] } });
+  const [orgData, setOrgData] = useState({ orgs: {}, orgResponses: {} });
   const [status, setStatus] = useState({});
   const [priv, setPriv] = useState([]);
   const [names, setNames] = useState({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
+  const [sector, setSector] = useState("all");
   const [cat, setCat] = useState("all");
   const [state, setState] = useState("all");
   const [district, setDistrict] = useState("all");
@@ -707,6 +766,10 @@ export default function App() {
   const [hidden, setHidden] = useState({});
   const [responses, setResponses] = useState({});
   const [modOpen, setModOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [more, setMore] = useState(false);
+  useEffect(() => { if (!more) return; const c = (e) => { if (!e.target.closest?.("#more-menu, [aria-controls=more-menu]")) setMore(false); }; document.addEventListener("click", c); return () => document.removeEventListener("click", c); }, [more]);
+  useEffect(() => { if (!menu) return; const c = (e) => { if (!e.target.closest?.("#mobile-menu, [aria-controls=mobile-menu]")) setMenu(false); }; document.addEventListener("click", c); return () => document.removeEventListener("click", c); }, [menu]);
   const [legal, setLegal] = useState(null);
   const [login, setLogin] = useState(false); // false | "signup" | "signin"
   const [evStatus, setEvStatus] = useState({});
@@ -725,7 +788,7 @@ export default function App() {
     let unsub = () => {};
     connect().then((s) => {
       setStore(s);
-      unsub = s.subscribe({ onPosts: (p) => { setPosts(p); setLoading(false); }, onVotes: setVotes, onStatus: setStatus, onPrivate: setPriv, onHidden: setHidden, onResponses: setResponses, onEvidence: setEvStatus, onError: () => setLoading(false) });
+      unsub = s.subscribe({ onOrgs: setOrgData, onPosts: (p) => { setPosts(p); setLoading(false); }, onVotes: setVotes, onStatus: setStatus, onPrivate: setPriv, onHidden: setHidden, onResponses: setResponses, onEvidence: setEvStatus, onError: () => setLoading(false) });
       setTimeout(() => setLoading(false), 2500);
       if (s.auth?.signedIn) s.getProfile?.().then((p) => { setProfile(p); if (!p?.completed) setProfileOpen(true); }).catch(() => {});
     });
@@ -739,15 +802,15 @@ export default function App() {
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    let l = posts.filter((p) => (store?.isAdmin || !hidden[p.id]) && (type === "all" || p.type === type) && (cat === "all" || catById(p.cat).id === cat) && (state === "all" || String(p.state).toLowerCase() === state.toLowerCase()) && (district === "all" || p.district === district) && (!t || `${p.title} ${p.body} ${p.entity} ${p.city} ${p.state} ${p.sub || ""} ${catById(p.cat).name}`.toLowerCase().includes(t)));
+    let l = posts.filter((p) => (store?.isAdmin || !hidden[p.id]) && (type === "all" || p.type === type) && (sector === "all" || (p.sector || "government") === sector) && (cat === "all" || catById(p.cat).id === cat) && (state === "all" || String(p.state).toLowerCase() === state.toLowerCase()) && (district === "all" || p.district === district) && (!t || `${p.title} ${p.body} ${p.entity} ${p.city} ${p.state} ${p.sub || ""} ${catById(p.cat).name}`.toLowerCase().includes(t)));
     const m = (p) => votes.metoo[p.id] || 0;
     l = [...l].sort(sort === "support" ? (a, b) => m(b) - m(a) : sort === "best" ? (a, b) => (b.rating || 0) - (a.rating || 0) : sort === "worst" ? (a, b) => (a.rating || 9) - (b.rating || 9) : (a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     return l;
-  }, [posts, q, type, cat, state, district, sort, votes, hidden, store]);
+  }, [posts, q, type, sector, cat, state, district, sort, votes, hidden, store]);
 
   const stats = useMemo(() => {
     const issues = posts.filter((p) => p.type === "issue");
-    const resolved = issues.filter((p) => status[p.id] === "Resolved").length;
+    const resolved = issues.filter((p) => DONE_STATUSES.includes(status[p.id])).length;
     const cities = new Set(posts.map((p) => `${p.city}|${p.state}`)).size;
     const support = Object.values(votes.metoo).reduce((s, v) => s + v, 0);
     return { voices: posts.length, resolved, issues: issues.length, cities, support };
@@ -761,13 +824,22 @@ export default function App() {
   const summarise = async () => {
     if (!store?.sample) return;
     setAi({ busy: true, text: "" });
-    const rows = filtered.slice(0, 40).map((p) => ({ type: p.type, category: catById(p.cat).name, place: p.entity, city: p.city, state: p.state, rating: p.rating, severity: p.severity, status: status[p.id] || "Open", metoo: votes.metoo[p.id] || 0, title: p.title }));
+    const rows = filtered.slice(0, 40).map((p) => ({ type: p.type, category: catById(p.cat).name, place: p.entity, city: p.city, state: p.state, rating: p.rating, severity: p.severity, status: status[p.id] || "Submitted", metoo: votes.metoo[p.id] || 0, title: p.title }));
     try {
       await store.sample(`You summarise citizen feedback for an Indian public review platform. Using ONLY the JSON below, write 3 to 5 short bullet points (start each with "• ") about the most supported problems, places doing well, and what authorities should act on first. Be factual and neutral, never name private individuals, and do not invent anything not in the data.\n\n${JSON.stringify(rows)}`, { onText: ({ text }) => setAi({ busy: true, text }), cache: false });
       setAi((s) => ({ ...s, busy: false }));
     } catch (e) { setAi({ busy: false, text: e?.code === "not_granted" ? "" : "Could not create a summary right now." }); }
   };
 
+  useEffect(() => {
+    if (!store) return;
+    const u = new URLSearchParams(location.search);
+    if (u.has("compose") || u.has("signin")) {
+      if (u.has("signin") && store.auth && !store.auth.signedIn) setLogin("signin");
+      else if (u.has("compose")) { if (store.auth && !store.auth.preview && !store.auth.signedIn) setLogin("signup"); else setComposer(true); }
+      history.replaceState(null, "", location.pathname);
+    }
+  }, [store]);
   const signedIn = !!store?.auth?.signedIn; // eslint-disable-line no-unused-vars
   const requireAccount = store?.auth && !store.auth.preview;
   const openComposer = () => (requireAccount && !signedIn ? setLogin("signup") : requireAccount && !profile?.completed ? setProfileOpen(true) : setComposer(true));
@@ -778,27 +850,55 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      {SITE.announcement?.active && SITE.announcement.text && (
+        <div role="status" className={`px-4 py-2.5 text-center text-[13.5px] font-medium ${{ info: "bg-indigo text-white", warning: "bg-sun text-ink", success: "bg-leaf text-white" }[SITE.announcement.tone || "info"] || "bg-indigo text-white"}`}>
+          {SITE.announcement.text}{SITE.announcement.link && <a href={SITE.announcement.link} className="ml-2 font-bold underline" target={SITE.announcement.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer">Learn more</a>}
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-40 border-b hair bg-bg/80 backdrop-blur-xl" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-2 px-3 sm:gap-4 sm:px-4 md:px-6">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-1.5 px-2.5 sm:gap-4 sm:px-4 md:px-6">
           <a href="#top" className="focusable rounded-lg" aria-label="One Youth One India home"><Logo /></a>
           <nav className="ml-2 hidden gap-0 xl:flex" aria-label="Main">
-            {[["Explore", "#explore"], ["Help near you", "#help"], ["Official channels", "#channels"]].map(([l, h]) => <a key={l} href={h} className="focusable whitespace-nowrap rounded-full px-2.5 py-2 text-[14px] font-medium text-mute hover:bg-raised hover:text-ink">{l}</a>)}
+            {NAV_LINKS.filter((x) => !x[2]).map(([l, h]) => <a key={l} href={h} className="focusable whitespace-nowrap rounded-full px-2 py-2 text-[14px] font-medium text-mute hover:bg-raised hover:text-ink">{l}</a>)}
+            <div className="relative">
+              <button onClick={() => setMore((m) => !m)} aria-expanded={more} aria-controls="more-menu" className="focusable inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-2 text-[14px] font-medium text-mute hover:bg-raised hover:text-ink">More<ChevronDown size={15} className={more ? "rotate-180 transition" : "transition"} /></button>
+              {more && <div id="more-menu" className="absolute left-0 top-11 z-50 w-56 rounded-2xl border hair2 bg-card p-2 shadow-2xl">{NAV_LINKS.filter((x) => x[2]).map(([l, h]) => <a key={l} href={h} onClick={() => setMore(false)} className="focusable block rounded-xl px-3 py-2.5 text-[14px] font-medium hover:bg-raised">{l}</a>)}</div>}
+            </div>
           </nav>
+          <div className="relative xl:hidden">
+            <button onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-controls="mobile-menu" aria-label="Menu" className="focusable inline-flex h-10 w-9 items-center justify-center rounded-full text-mute hover:bg-raised"><MenuIcon size={19} /></button>
+            {menu && (
+              <div id="mobile-menu" className="absolute left-0 top-12 z-50 w-60 rounded-2xl border hair2 bg-card p-2 shadow-2xl">
+                {NAV_LINKS.map(([l, h]) => <a key={l} href={h} onClick={() => setMenu(false)} className="focusable block rounded-xl px-3 py-2.5 text-[14.5px] font-medium hover:bg-raised">{l}</a>)}
+                <div className="my-1.5 border-t hair" />
+                {signedIn ? (<>
+                  <a href="/dashboard" className="focusable block rounded-xl px-3 py-2.5 text-[14.5px] font-semibold hover:bg-raised">My Voice Dashboard</a>
+                  <button onClick={() => { setMenu(false); setProfileOpen(true); }} className="focusable block w-full rounded-xl px-3 py-2.5 text-left text-[14.5px] font-semibold hover:bg-raised">My profile</button>
+                  {store?.role && ["super_admin","admin","moderator","state_admin","district_admin","analyst","content_manager"].includes(store.role) && <a href="/admin" className="focusable block rounded-xl px-3 py-2.5 text-[14.5px] font-semibold hover:bg-raised">Admin portal</a>}
+                </>) : store?.auth && (<>
+                  <button onClick={() => { setMenu(false); setLogin("signin"); }} className="focusable block w-full rounded-xl px-3 py-2.5 text-left text-[14.5px] font-semibold hover:bg-raised">Sign in</button>
+                  <button onClick={() => { setMenu(false); setLogin("signup"); }} className="focusable block w-full rounded-xl px-3 py-2.5 text-left text-[14.5px] font-bold text-indigo hover:bg-raised">Sign up</button>
+                </>)}
+              </div>
+            )}
+          </div>
           <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
             <a href="tel:112" className="focusable inline-flex h-10 items-center gap-1 rounded-full bg-ruby px-2.5 sm:gap-1.5 sm:px-3 text-[13px] font-extrabold text-white" aria-label="Call emergency 112"><Phone size={15} />112</a>
-            {store?.isAdmin && <button onClick={() => setModOpen(true)} className="focusable hidden h-10 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-[14px] font-medium text-mute hover:bg-raised hover:text-ink md:inline-flex" aria-label="Moderation" title="Moderation dashboard"><Gavel size={17} />{Object.keys(votes.flags).length > 0 && <span className="rounded-full bg-ruby px-1.5 text-[11px] font-bold text-white">{posts.filter((p) => votes.flags[p.id]).length}</span>}</button>}
+            {store?.role && ["super_admin","admin","moderator","state_admin","district_admin","analyst","content_manager"].includes(store.role) && <a href="/admin" className="focusable hidden h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[14px] font-semibold text-mute hover:bg-raised hover:text-ink xl:inline-flex" title="Admin portal" aria-label="Admin portal"><ShieldCheck size={17} /></a>}
+            {signedIn && <a href="/dashboard" className="focusable hidden h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[14px] font-semibold text-mute hover:bg-raised hover:text-ink xl:inline-flex" title="My Voice Dashboard" aria-label="My Voice Dashboard"><Activity size={17} /></a>}
+            {store?.isAdmin && <button onClick={() => setModOpen(true)} className="focusable hidden h-10 items-center gap-2 whitespace-nowrap rounded-full px-3 text-[14px] font-medium text-mute hover:bg-raised hover:text-ink xl:inline-flex" aria-label="Moderation" title="Moderation dashboard"><Gavel size={17} />{Object.keys(votes.flags).length > 0 && <span className="rounded-full bg-ruby px-1.5 text-[11px] font-bold text-white">{posts.filter((p) => votes.flags[p.id]).length}</span>}</button>}
             {store?.auth && (signedIn ? (
-              <button onClick={() => setProfileOpen(true)} className="focusable inline-flex h-10 items-center gap-2 rounded-full pl-1 pr-1 text-[14px] font-semibold hover:bg-raised sm:pr-3" aria-label="My profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-saffron via-indigo to-leaf text-[13px] font-extrabold text-white">{(profile?.displayName || "?").charAt(0).toUpperCase()}</span><span className="hidden max-w-[110px] truncate lg:inline">{profile?.displayName || "Profile"}</span></button>
+              <button onClick={() => setProfileOpen(true)} className="focusable hidden h-10 items-center gap-2 rounded-full pl-1 pr-1 text-[14px] font-semibold hover:bg-raised sm:inline-flex sm:pr-3" aria-label="My profile"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-saffron via-indigo to-leaf text-[13px] font-extrabold text-white">{(profile?.displayName || "?").charAt(0).toUpperCase()}</span><span className="hidden max-w-[110px] truncate 2xl:inline">{profile?.displayName || "Profile"}</span></button>
             ) : (
               <>
                 <button onClick={() => setLogin("signin")} className="focusable hidden h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[14px] font-semibold text-ink hover:bg-raised md:inline-flex"><LogIn size={16} />Sign in</button>
-                <button onClick={() => setLogin("signup")} className="focusable inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-indigo/30 bg-indigo/10 px-2.5 text-[14px] font-bold text-indigo hover:bg-indigo/15 sm:px-3" aria-label="Sign up"><UserRound size={16} /><span className="hidden sm:inline">Sign up</span></button>
+                <button onClick={() => setLogin("signup")} className="focusable hidden h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-indigo/30 bg-indigo/10 px-2.5 text-[14px] font-bold text-indigo hover:bg-indigo/15 sm:inline-flex sm:px-3" aria-label="Sign up"><UserRound size={16} /><span className="hidden sm:inline">Sign up</span></button>
               </>
             ))}
             <button onClick={() => setMine(true)} aria-label="My activity" title="My activity" className="focusable hidden h-10 items-center gap-2 whitespace-nowrap rounded-full px-3 text-[14px] font-medium text-mute hover:bg-raised hover:text-ink sm:inline-flex"><Inbox size={17} /></button>
             <button onClick={() => setTheme(isDark ? "light" : "dark")} className="focusable hidden rounded-full p-2.5 text-mute hover:bg-raised sm:inline-flex" aria-label="Toggle light and dark mode">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button>
-            <button onClick={openComposer} aria-label="Share your voice" className="focusable inline-flex h-10 items-center gap-2 rounded-full bg-ink px-3 text-[14px] font-bold text-bg sm:px-4"><Plus size={17} /><span className="hidden whitespace-nowrap sm:inline">Share your voice</span></button>
+            <button onClick={openComposer} aria-label="Share Your Experience" className="focusable inline-flex h-10 items-center gap-2 rounded-full bg-ink px-3 text-[14px] font-bold text-bg sm:px-4"><Plus size={17} /><span className="hidden whitespace-nowrap sm:inline 2xl:hidden">Share</span><span className="hidden whitespace-nowrap 2xl:inline">Share Your Experience</span></button>
           </div>
         </div>
       </header>
@@ -835,13 +935,13 @@ export default function App() {
                     <motion.li key={p.id} layout initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-2xl bg-raised p-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: catById(p.cat).color }}><CatIcon id={p.cat} size={18} /></span>
                       <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{p.title}</span><span className="block truncate text-[12px] text-mute">{p.city}, {p.state} · {timeAgo(p.createdAt)}</span></span>
-                      {p.type === "review" ? <span className="flex items-center gap-1 text-[13px] font-bold"><Star size={14} className="fill-sun text-sun" />{p.rating}</span> : <span className="text-[11.5px] font-bold" style={{ color: STATUS_TONE[status[p.id] || "Open"] }}>{status[p.id] || "Open"}</span>}
+                      {p.type === "review" ? <span className="flex items-center gap-1 text-[13px] font-bold"><Star size={14} className="fill-sun text-sun" />{p.rating}</span> : <span className="text-[11.5px] font-bold" style={{ color: STATUS_TONE[status[p.id] || "Submitted"] }}>{status[p.id] || "Submitted"}</span>}
                     </motion.li>
                   ))}
                 </AnimatePresence>
                 {!latest.length && <li className="rounded-2xl bg-raised p-6 text-center text-[14px] text-mute">{loading ? <span className="inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" />Connecting</span> : "No voices yet. Be the first to share."}</li>}
               </ul>
-              <button onClick={openComposer} className="focusable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-saffron via-indigo to-leaf text-[15px] font-bold text-white"><Megaphone size={18} />Share your voice</button>
+              <button onClick={openComposer} className="focusable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-saffron via-indigo to-leaf text-[15px] font-bold text-white"><Megaphone size={18} />Share Your Experience</button>
             </div>
           </motion.div>
         </div>
@@ -881,9 +981,10 @@ export default function App() {
       <section id="explore" ref={exploreRef} className="scroll-mt-20 border-t hair bg-raised/40">
         <div className="mx-auto max-w-[1280px] px-4 py-14 md:px-6">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div><h2 className="font-display text-[34px] font-extrabold tracking-[-0.03em] md:text-[44px]">Explore voices</h2><p className="mt-1 text-[15px] text-mute">{filtered.length} result{filtered.length === 1 ? "" : "s"}{cat !== "all" ? ` in ${catById(cat).name}` : ""}{state !== "all" ? ` · ${district !== "all" ? `${district}, ` : ""}${state}` : ""}</p></div>
+            <div><p className="text-[12.5px] font-bold uppercase tracking-[0.18em] text-saffron">Voice for Change</p><h2 className="font-display text-[34px] font-extrabold tracking-[-0.03em] md:text-[44px]">Explore experiences</h2><p className="mt-1 text-[15px] text-mute">{filtered.length} result{filtered.length === 1 ? "" : "s"}{cat !== "all" ? ` in ${catById(cat).name}` : ""}{state !== "all" ? ` · ${district !== "all" ? `${district}, ` : ""}${state}` : ""}</p></div>
             <div className="flex flex-wrap gap-2">
-              <div className="flex rounded-full bg-card p-1 shadow-sm" role="tablist" aria-label="Type">{[["all", "All"], ["issue", "Issues"], ["review", "Reviews"]].map(([k, l]) => <button key={k} role="tab" aria-selected={type === k} onClick={() => setType(k)} className={`focusable rounded-full px-4 py-2 text-[13.5px] font-semibold transition ${type === k ? "bg-ink text-bg" : "text-mute"}`}>{l}</button>)}</div>
+              <div className="flex rounded-full bg-card p-1 shadow-sm" role="tablist" aria-label="Sector">{[["all", "All sectors"], ["government", "Public services"], ["private", "Consumer"]].map(([k, l]) => <button key={k} role="tab" aria-selected={sector === k} onClick={() => setSector(k)} className={`focusable h-8 rounded-full px-3.5 text-[13px] font-semibold ${sector === k ? "bg-ink text-bg" : "text-mute"}`}>{l}</button>)}</div>
+              <div className="flex rounded-full bg-card p-1 shadow-sm" role="tablist" aria-label="Type">{[["all", "All"], ["issue", "Needs attention"], ["review", "Reviews"]].map(([k, l]) => <button key={k} role="tab" aria-selected={type === k} onClick={() => setType(k)} className={`focusable rounded-full px-4 py-2 text-[13.5px] font-semibold transition ${type === k ? "bg-ink text-bg" : "text-mute"}`}>{l}</button>)}</div>
               <label className="sr-only" htmlFor="f-state">State</label>
               <select id="f-state" value={state} onChange={(e) => { setState(e.target.value); setDistrict("all"); }} className="focusable h-10 max-w-[180px] rounded-full border hair2 bg-card px-4 text-[13.5px] font-semibold"><option value="all">All states</option>{STATES.map((s) => <option key={s}>{s}</option>)}</select>
               {state !== "all" && districtsOf(state).length > 0 && (<><label className="sr-only" htmlFor="f-dist">District</label><select id="f-dist" value={district} onChange={(e) => setDistrict(e.target.value)} className="focusable h-10 max-w-[180px] rounded-full border hair2 bg-card px-4 text-[13.5px] font-semibold"><option value="all">All districts</option>{districtsOf(state).map((d) => <option key={d.code}>{d.name}</option>)}</select></>)}
@@ -899,14 +1000,14 @@ export default function App() {
           <div className="mt-8 grid gap-6 lg:grid-cols-12">
             <div className="space-y-4 lg:col-span-8">
               <AnimatePresence mode="popLayout">
-                {filtered.map((p) => <PostCard key={p.id} p={p} status={status[p.id]} metoo={votes.metoo[p.id]} mine={votes.mine.metoo.includes(p.id)} flagged={votes.mine.flags.includes(p.id)} isAdmin={store?.isAdmin} name={p.authorId ? names[p.authorId] : ""} onToggle={(k, id) => store?.toggle(k, id)} onStatus={(id, s) => store?.setStatus(id, s, status)} onChannel={setChannel} hidden={!!hidden[p.id]} response={responses[p.id]} evStatus={evStatus} resolve={store?.mediaUrl} me={store?.me} onOpenMedia={setLightbox} />)}
+                {filtered.map((p) => <PostCard key={p.id} p={p} org={orgData.orgs[p.organizationId]} orgReplies={orgData.orgResponses[p.id]} helpful={votes.helpful?.[p.id] || 0} helpfulMine={!!votes.mine.helpful?.includes(p.id)} status={status[p.id]} metoo={votes.metoo[p.id]} mine={votes.mine.metoo.includes(p.id)} flagged={votes.mine.flags.includes(p.id)} isAdmin={store?.isAdmin} name={p.authorId ? names[p.authorId] : ""} onToggle={(k, id) => store?.toggle(k, id)} onStatus={(id, s) => store?.setStatus(id, s, status)} onChannel={setChannel} hidden={!!hidden[p.id]} response={responses[p.id]} evStatus={evStatus} resolve={store?.mediaUrl} me={store?.me} onOpenMedia={setLightbox} />)}
               </AnimatePresence>
               {!filtered.length && (
                 <div className="rounded-3xl border border-dashed hair2 bg-card p-12 text-center">
                   <MessageSquare size={30} className="mx-auto text-faint" />
                   <p className="mt-3 font-display text-[22px] font-bold">{loading ? "Loading voices" : "Nothing here yet"}</p>
                   <p className="mt-1 text-[14.5px] text-mute">{loading ? "Connecting to the live feed." : "Try another filter, or be the first to share."}</p>
-                  {!loading && <button onClick={openComposer} className="focusable mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-indigo px-5 text-[14px] font-bold text-white"><Plus size={16} />Share your voice</button>}
+                  {!loading && <button onClick={openComposer} className="focusable mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-indigo px-5 text-[14px] font-bold text-white"><Plus size={16} />Share Your Experience</button>}
                 </div>
               )}
             </div>
@@ -943,9 +1044,15 @@ export default function App() {
         </div>
       </section>
 
+      {/* All India City Survey */}
+      <CityMeter me={store?.me} signedIn={signedIn} onSignIn={() => setLogin("signin")} />
+
+      {/* About, What we do, How we help */}
+      <InfoTabs onShare={openComposer} onExplore={goExplore} />
+
       {/* How it works */}
       <section id="how" className="mx-auto max-w-[1280px] px-4 py-16 md:px-6">
-        <h2 className="font-display text-[34px] font-extrabold tracking-[-0.03em] md:text-[44px]">From complaint to change</h2>
+        <h2 className="font-display text-[34px] font-extrabold tracking-[-0.03em] md:text-[44px]">From your voice to real change</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-4">
           {[[Megaphone, "Share", "Post a review or report an issue in under a minute, publicly or privately.", "#FF7A2F"], [Users, "Rally", "Neighbours add Me too, so the most urgent problems rise to the top.", "#3B3FD8"], [Activity, "Track", "Every issue moves from Open to Acknowledged, In progress and Resolved.", "#F5B400"], [CheckCircle2, "Change", "Organisations respond, fix and earn trust in public.", "#13A86B"]].map(([I, t, b, c], i) => (
             <div key={t} className="relative rounded-3xl border hair bg-card p-6"><span className="font-display text-[56px] font-extrabold leading-none text-line/10">{i + 1}</span><span className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-2xl text-white" style={{ background: c }}><I size={20} /></span><h3 className="mt-2 font-display text-[22px] font-bold">{t}</h3><p className="mt-2 text-[14.5px] leading-relaxed text-mute">{b}</p></div>
@@ -988,7 +1095,7 @@ export default function App() {
       <footer className="border-t hair">
         <div className="mx-auto flex max-w-[1280px] flex-col justify-between gap-6 px-4 py-10 md:flex-row md:items-center md:px-6">
           <div><Logo /><p className="mt-3 max-w-sm text-[13.5px] text-mute">Real time public reviews and civic feedback.</p><p className="mt-3 flex flex-col gap-1.5 text-[13.5px]"><a href={`mailto:${CONTACT.email}`} className="focusable inline-flex items-center gap-2 rounded font-semibold text-indigo"><Mail size={15} />{CONTACT.email}</a><span className="inline-flex items-center gap-2 text-mute"><MapPin size={15} />{CONTACT.city}</span><span className="inline-flex items-center gap-2 text-mute"><Globe2 size={15} />{CONTACT.site}</span></p></div>
-          <div className="flex flex-wrap gap-5 text-[13.5px] text-mute"><a href="#guidelines" className="hover:text-ink">Guidelines</a><button onClick={() => setLegal("privacy")} className="focusable rounded hover:text-ink">Privacy Policy</button><button onClick={() => setLegal("terms")} className="focusable rounded hover:text-ink">Terms of Use</button><button onClick={() => setLegal("grievance")} className="focusable rounded hover:text-ink">Grievance Officer</button></div>
+          <div className="flex flex-wrap gap-5 text-[13.5px] text-mute"><a href="#about" className="hover:text-ink">About</a><a href="#what-we-do" className="hover:text-ink">What we do</a><a href="#how-we-help" className="hover:text-ink">How we help</a><a href="#guidelines" className="hover:text-ink">Guidelines</a><button onClick={() => setLegal("privacy")} className="focusable rounded hover:text-ink">Privacy Policy</button><button onClick={() => setLegal("terms")} className="focusable rounded hover:text-ink">Terms of Use</button><button onClick={() => setLegal("grievance")} className="focusable rounded hover:text-ink">Grievance Officer</button></div>
         </div>
       </footer>
 
@@ -998,7 +1105,7 @@ export default function App() {
       <AnimatePresence>{profileOpen && store && <ProfileSheet store={store} initial={profile} firstTime={!profile?.completed} onClose={() => setProfileOpen(false)} onSaved={(p) => { setProfile(p); setProfileOpen(false); }} onSignOut={signOut} />}</AnimatePresence>
       <AnimatePresence>{lightbox && <Lightbox item={lightbox} onClose={() => setLightbox(null)} />}</AnimatePresence>
       <AnimatePresence>{channel && <ChannelSheet cat={channel} onClose={() => setChannel(null)} />}</AnimatePresence>
-      <AnimatePresence>{composer && <Composer sample={store?.sample} canWrite={store?.canWrite !== false} canUpload={!!store?.canUpload} upload={(b, k) => store.uploadEvidence(b, k)} onClose={() => setComposer(false)} onSubmit={(p) => store.addPost(p)} />}</AnimatePresence>
+      <AnimatePresence>{composer && <Composer orgs={store} sample={store?.sample} canWrite={store?.canWrite !== false} canUpload={!!store?.canUpload} upload={(b, k) => store.uploadEvidence(b, k)} onClose={() => setComposer(false)} onSubmit={(p) => store.addPost(p)} />}</AnimatePresence>
 
       <AnimatePresence>
         {mine && (
@@ -1008,7 +1115,7 @@ export default function App() {
               <h3 className="mt-6 flex items-center gap-2 text-[14px] font-bold"><Lock size={15} className="text-indigo" />Private feedback ({priv.length})</h3>
               <ul className="mt-3 space-y-2">{priv.map((p) => <li key={p.id} className="rounded-2xl bg-raised p-4"><p className="text-[14px] font-semibold">{p.title}</p><p className="text-[12.5px] text-mute">{p.entity} · {p.city} · {timeAgo(p.createdAt)}</p></li>)}{!priv.length && <li className="text-[13.5px] text-mute">Nothing private yet.</li>}</ul>
               <h3 className="mt-6 flex items-center gap-2 text-[14px] font-bold"><Globe2 size={15} className="text-saffron" />My public voices ({posts.filter((p) => p.authorId && p.authorId === store?.me).length})</h3>
-              <ul className="mt-3 space-y-2">{posts.filter((p) => p.authorId && p.authorId === store?.me).map((p) => <li key={p.id} className="rounded-2xl bg-raised p-4"><p className="text-[14px] font-semibold">{p.title}</p><p className="text-[12.5px] text-mute">{status[p.id] || "Open"} · {votes.metoo[p.id] || 0} Me too · {timeAgo(p.createdAt)}</p></li>)}</ul>
+              <ul className="mt-3 space-y-2">{posts.filter((p) => p.authorId && p.authorId === store?.me).map((p) => <li key={p.id} className="rounded-2xl bg-raised p-4"><p className="text-[14px] font-semibold">{p.title}</p><p className="text-[12.5px] text-mute">{status[p.id] || "Submitted"} · {votes.metoo[p.id] || 0} Me too · {timeAgo(p.createdAt)}</p></li>)}</ul>
             </motion.aside>
           </motion.div>
         )}

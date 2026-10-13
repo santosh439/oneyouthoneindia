@@ -28,7 +28,7 @@ export const CHANNELS = {
 };
 
 const PALETTE = ["#3B3FD8", "#E5484D", "#D9467F", "#A16207", "#0E7490", "#7C3AED", "#4F46E5", "#0F766E", "#EA580C", "#2563EB", "#475569", "#0891B2", "#B45309", "#DC2626", "#1D4ED8", "#9333EA", "#047857", "#C2410C", "#166534", "#7E22CE", "#BE185D", "#15803D", "#334155", "#4D7C0F", "#DB2777", "#0369A1", "#C026D3"];
-const C = (id, name, icon, hint, subs, channels) => ({ id, name, icon, hint, subs, channels });
+const C = (id, name, icon, hint, subs, channels, sector = "government") => ({ id, name, icon, hint, subs, channels, sector });
 const LIST = [
   C("education", "Education", "GraduationCap", "Schools, colleges, boards", ["Government school", "Kendriya Vidyalaya", "Jawahar Navodaya Vidyalaya", "State or central university", "IIT, NIT or IIM", "ITI", "CBSE or state board"], ["state", "cpgrams", "rti"]),
   C("health", "Healthcare", "HeartPulse", "Hospitals, PHCs, medicines", ["AIIMS or central hospital", "District hospital", "Community health centre (CHC)", "Primary health centre (PHC)", "ESIC hospital", "CGHS dispensary", "Jan Aushadhi Kendra", "Ayushman Bharat"], ["amb108", "health104", "state", "cpgrams"]),
@@ -57,9 +57,18 @@ const LIST = [
   C("welfare", "Welfare of Communities", "HeartHandshake", "Scholarships, hostels, schemes", ["Scholarship", "Hostel", "Reservation certificate", "Tribal welfare", "Minority welfare"], ["state", "cpgrams"]),
   C("digital", "Digital Services", "Smartphone", "CSC, DigiLocker, UMANG", ["Common Service Centre", "DigiLocker", "UMANG", "State e-district portal"], ["cpgrams", "state"]),
   C("corruption", "Corruption and Bribery", "HandCoins", "Bribes, extortion, scheme fraud", ["Bribe demanded", "Bribe paid under pressure", "Extortion by an official", "Fraud in a government scheme", "Fake fees or receipts"], ["acb", "cvc", "cpgrams"]),
-  C("products", "Products and Shopping", "ShoppingBag", "Brands, delivery, stores", ["Online shopping", "Food delivery", "Retail store", "Electronics", "Other product"], ["consumer", "edaakhil"]),
+  C("products", "E-commerce and Retail", "ShoppingBag", "Online shopping, stores, groceries", ["Online shopping", "Retail store", "Grocery delivery", "Electronics", "Fashion", "Consumer product"], ["consumer", "edaakhil"], "private"),
+  C("telecom", "Internet and Telecom", "Wifi", "Broadband, mobile, DTH", ["Broadband provider", "Fibre internet", "Mobile network", "Internet service provider", "DTH or cable", "Customer support"], ["consumer", "edaakhil"], "private"),
+  C("food", "Food and Hospitality", "UtensilsCrossed", "Restaurants, delivery, hotels", ["Restaurant", "Cafe", "Food delivery app", "Cloud kitchen", "Catering", "Hotel"], ["consumer", "edaakhil"], "private"),
+  C("finance", "Banks, Insurance and Payments", "CreditCard", "Private banks, insurers, fintech", ["Private bank", "Insurance company", "Digital payments", "Fintech app", "Loan provider"], ["rbi", "consumer", "cyber"], "private"),
+  C("phealth", "Private Healthcare", "Stethoscope", "Hospitals, clinics, labs, pharmacies", ["Private hospital", "Clinic", "Diagnostic centre", "Pharmacy", "Health service"], ["consumer", "edaakhil"], "private"),
+  C("peducation", "Private Education", "School", "Schools, colleges, coaching, online", ["Private school", "College", "University", "Coaching centre", "Online learning"], ["consumer", "edaakhil"], "private"),
+  C("mobility", "Transport and Mobility", "Truck", "Cabs, buses, airlines, couriers", ["Ride hailing", "Taxi", "Private bus operator", "Airline", "Logistics", "Courier", "Vehicle service centre"], ["consumer", "edaakhil"], "private"),
+  C("techsvc", "Technology and Digital Services", "Laptop", "Apps, software, subscriptions", ["Software company", "SaaS provider", "Digital platform", "IT support", "Online subscription"], ["consumer", "cyber"], "private"),
+  C("homesvc", "Housing and Home Services", "Wrench", "Real estate, repairs, security", ["Real estate or builder", "Home maintenance", "Repair service", "Security service", "Facility management"], ["consumer", "edaakhil"], "private"),
 ];
-export const CATEGORIES = LIST.map((c, i) => ({ ...c, color: PALETTE[i % PALETTE.length], govt: c.id !== "products" }));
+export const CATEGORIES = LIST.map((c, i) => ({ ...c, sector: c.sector || "government", color: PALETTE[i % PALETTE.length], govt: (c.sector || "government") === "government" }));
+export const SECTORS = [["government", "Public Service Experience", "Government departments, local bodies and public services"], ["private", "Consumer Experience", "Companies, shops and private service providers"]];
 const ALIAS = { safety: "police", govt: "identity", finance: "banking" };
 export const catById = (id) => CATEGORIES.find((c) => c.id === (ALIAS[id] || id)) || CATEGORIES[0];
 
@@ -73,8 +82,10 @@ export const tehsilsOf = (state, district) => districtsOf(state).find((d) => d.n
 export const citiesOf = (state) => stateBy(state)?.cities || [];
 
 export const SEVERITY = ["Low", "Medium", "High", "Critical"];
-export const STATUSES = ["Open", "Acknowledged", "In progress", "Resolved"];
-export const STATUS_TONE = { Open: "#FF7A2F", Acknowledged: "#3B3FD8", "In progress": "#F5B400", Resolved: "#13A86B" };
+// Feedback Progress (matches the database): Submitted > Under review > Assigned > Response awaited > Action in progress > Outcome provided > Closed
+export const STATUSES = ["Submitted", "Under review", "Assigned", "Response awaited", "Action in progress", "Outcome provided", "Closed"];
+export const STATUS_TONE = { Submitted: "#FF7A2F", "Under review": "#3B3FD8", Assigned: "#7C3AED", "Response awaited": "#D9467F", "Action in progress": "#F5B400", "Outcome provided": "#13A86B", Closed: "#6B7280" };
+export const DONE_STATUSES = ["Outcome provided", "Closed"];
 
 export function timeAgo(iso) {
   const s = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 1000));

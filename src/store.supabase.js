@@ -4,24 +4,26 @@
  * Run supabase/schema.sql in your project first. Phone OTP needs an SMS provider
  * (for example MSG91 or Twilio) configured under Authentication > Providers > Phone.
  */
-import { createClient } from "@supabase/supabase-js";
+import { sb as getClient } from "./sb.js";
 
 const toPost = (r) => ({
   id: r.id, type: r.type, cat: r.cat, sub: r.sub, entity: r.entity, city: r.city, tehsil: r.tehsil, district: r.district, state: r.state,
   rating: r.rating, severity: r.severity, title: r.title, body: r.body, anon: r.anon, visibility: r.visibility,
-  createdAt: r.created_at, authorId: r.anon ? null : r.author_id, ownerId: r.author_id, sample: r.sample, evidence: r.evidence || [], lang: r.lang,
+  createdAt: r.created_at, refNo: r.ref_no, publication: r.publication, withdrawn: r.withdrawn, authorId: r.anon ? null : r.author_id, ownerId: r.author_id, sample: r.sample, evidence: r.evidence || [], lang: r.lang,
+  sector: r.sector || "government", organizationId: r.organization_id || null, suggestion: r.suggestion || "", serviceLocation: r.service_location || "", experienceDate: r.experience_date || null,
 });
 
 export async function connectSupabase() {
-  const sb = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+  const sb = getClient();
   const { data: { session } } = await sb.auth.getSession();
   const me = session?.user?.id || null;
-  let isAdmin = false;
+  let isAdmin = false, role = "citizen";
   if (me) {
     const { data } = await sb.from("profiles").select("role").eq("id", me).maybeSingle();
-    isAdmin = ["moderator", "admin"].includes(data?.role);
+    role = data?.role || "citizen";
+    isAdmin = ["moderator", "admin", "super_admin", "state_admin", "district_admin"].includes(role);
   }
-  let mineVotes = { metoo: [], flags: [] };
+  let mineVotes = { metoo: [], flags: [], helpful: [] };
   let handlers = {};
   let timer = null;
   let postsById = {};
@@ -32,25 +34,38 @@ export async function connectSupabase() {
     const rows = data || [];
     const status = {}, hidden = {}, responses = {}, evid = {};
     rows.forEach((r) => { (r.evidence || []).forEach((e) => { if (e.status && e.status !== "pending") evid[e.id] = e.status; }); status[r.id] = r.status; if (r.hidden) hidden[r.id] = true; if (r.response) responses[r.id] = { text: r.response, at: r.response_at }; });
-    handlers.onPosts?.(rows.filter((r) => r.visibility === "public").map(toPost));
+    handlers.onPosts?.(rows.filter((r) => r.visibility === "public" && !r.withdrawn && (r.publication === "approved" || r.author_id === me || isAdmin)).map(toPost));
     handlers.onPrivate?.(rows.filter((r) => r.visibility === "private" && r.author_id === me).map(toPost));
     handlers.onStatus?.(status); handlers.onHidden?.(hidden); handlers.onResponses?.(responses); handlers.onEvidence?.(evid);
     postsById = Object.fromEntries(rows.map((r) => [r.id, r]));
+    loadOrgs(rows);
+  }
+  async function loadOrgs(rows) {
+    const orgIds = [...new Set(rows.map((r) => r.organization_id).filter(Boolean))];
+    const ids = rows.map((r) => r.id);
+    const [o, rs] = await Promise.all([
+      orgIds.length ? sb.from("organizations").select("id, name, sector, verified, website, last_verified_at").in("id", orgIds) : { data: [] },
+      ids.length ? sb.from("org_responses").select("id, post_id, organization_id, body, created_at").in("post_id", ids.slice(0, 300)).order("created_at") : { data: [] },
+    ]);
+    const orgs = Object.fromEntries((o.data || []).map((x) => [x.id, x]));
+    const orgResponses = {};
+    (rs.data || []).forEach((x) => (orgResponses[x.post_id] = orgResponses[x.post_id] || []).push(x));
+    handlers.onOrgs?.({ orgs, orgResponses });
   }
   async function loadVotes() {
     const { data } = await sb.from("vote_counts").select("*");
-    const metoo = {}, flags = {};
-    (data || []).forEach((r) => { if (r.kind === "metoo") metoo[r.post_id] = r.n; else flags[r.post_id] = r.n; });
+    const metoo = {}, flags = {}, helpful = {};
+    (data || []).forEach((r) => { if (r.kind === "metoo") metoo[r.post_id] = r.n; else if (r.kind === "helpful") helpful[r.post_id] = r.n; else flags[r.post_id] = r.n; });
     if (me) {
       const { data: mine } = await sb.from("votes").select("post_id, kind").eq("user_id", me);
-      mineVotes = { metoo: (mine || []).filter((v) => v.kind === "metoo").map((v) => v.post_id), flags: (mine || []).filter((v) => v.kind === "flag").map((v) => v.post_id) };
+      mineVotes = { metoo: (mine || []).filter((v) => v.kind === "metoo").map((v) => v.post_id), flags: (mine || []).filter((v) => v.kind === "flag").map((v) => v.post_id), helpful: (mine || []).filter((v) => v.kind === "helpful").map((v) => v.post_id) };
     }
-    handlers.onVotes?.({ metoo, flags, mine: mineVotes });
+    handlers.onVotes?.({ metoo, flags, helpful, mine: mineVotes });
   }
   const refresh = () => { clearTimeout(timer); timer = setTimeout(() => { loadPosts(); loadVotes(); }, 250); };
 
   return {
-    mode: "live", me, canWrite: !!me, isAdmin, sample: null, canUpload: !!me,
+    mode: "live", me, canWrite: !!me, isAdmin, role, sample: null, canUpload: !!me,
     async uploadEvidence(blob, kind) {
       const ext = kind === "video" ? (blob.type.split("/")[1] || "mp4") : "jpg";
       const path = `${me}/${crypto.randomUUID()}.${ext}`;
@@ -66,20 +81,35 @@ export async function connectSupabase() {
     },
     subscribe(h) {
       handlers = h; loadPosts(); loadVotes();
-      const ch = sb.channel("oyoi").on("postgres_changes", { event: "*", schema: "public", table: "posts" }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "votes" }, refresh).subscribe();
+      const ch = sb.channel("oyoi").on("postgres_changes", { event: "*", schema: "public", table: "posts" }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "votes" }, refresh).on("postgres_changes", { event: "INSERT", schema: "public", table: "org_responses" }, refresh).subscribe();
       return () => sb.removeChannel(ch);
     },
     async addPost(p) {
-      const { data, error } = await sb.from("posts").insert({ type: p.type, cat: p.cat, sub: p.sub || null, entity: p.entity, city: p.city, tehsil: p.tehsil || null, district: p.district || null, state: p.state, rating: p.rating, severity: p.severity, title: p.title, body: p.body, anon: p.anon, visibility: p.visibility, lang: p.lang || null, evidence: (p.evidence || []).map((e) => ({ ...e, status: "pending" })) }).select().single();
+      const { data, error } = await sb.from("posts").insert({ type: p.type, cat: p.cat, sub: p.sub || null, entity: p.entity, city: p.city, tehsil: p.tehsil || null, district: p.district || null, state: p.state, rating: p.rating, severity: p.severity, title: p.title, body: p.body, anon: p.anon, visibility: p.visibility, lang: p.lang || null, evidence: (p.evidence || []).map((e) => ({ ...e, status: "pending" })), sector: p.sector || "government", organization_id: p.organizationId || null, experience_date: p.experienceDate || null, suggestion: p.suggestion || null, service_location: p.serviceLocation || null }).select().single();
       if (error) throw error;
       refresh(); return toPost(data);
     },
     async toggle(kind, id) {
-      const k = kind === "flags" ? "flag" : "metoo";
+      const k = kind === "flags" ? "flag" : kind === "helpful" ? "helpful" : "metoo";
       const has = (mineVotes[kind] || []).includes(id);
       if (has) await sb.from("votes").delete().match({ post_id: id, user_id: me, kind: k });
       else await sb.from("votes").insert({ post_id: id, kind: k });
       refresh();
+    },
+    async searchOrgs(q, sector) {
+      let query = sb.from("organizations").select("id, name, sector, category, state, city, verified, website").eq("status", "published").order("verified", { ascending: false }).limit(8);
+      if (sector) query = query.eq("sector", sector);
+      if (q && q.trim()) query = query.ilike("name", `%${q.trim().replace(/[%_]/g, "")}%`);
+      const { data, error } = await query; if (error) throw error; return data || [];
+    },
+    async suggestOrg(o) {
+      const row = { name: o.name.trim(), sector: o.sector, category: o.category || null, state: o.state || null, city: o.city || null, created_by: me };
+      const { data, error } = await sb.from("organizations").insert(row).select("id").single();
+      if (error) {
+        if (/duplicate/i.test(error.message)) { const { data: ex } = await sb.from("organizations").select("id").eq("sector", o.sector).ilike("name", row.name).limit(1); return ex?.[0]?.id || null; }
+        throw error;
+      }
+      return data.id;
     },
     async setStatus(id, status) { await sb.from("posts").update({ status }).eq("id", id); refresh(); },
     async setHidden(id, hidden) { await sb.from("posts").update({ hidden }).eq("id", id); refresh(); },
@@ -116,7 +146,7 @@ export async function connectSupabase() {
         const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: create } });
         if (error) throw new Error(!create && /signups|not found|not allowed/i.test(error.message) ? "No account found for this email. Choose Sign up instead." : error.message);
       },
-      async verifyEmailOtp(email, token) { const { error } = await sb.auth.verifyOtp({ email, token, type: "email" }); if (error) throw error; location.reload(); },
+      async verifyEmailOtp(email, token) { let { error } = await sb.auth.verifyOtp({ email, token, type: "email" }); if (error) ({ error } = await sb.auth.verifyOtp({ email, token, type: "signup" })); if (error) throw error; location.reload(); },
       async sendOtp(phone, create = true) {
         const { error } = await sb.auth.signInWithOtp({ phone, options: { shouldCreateUser: create } });
         if (error) throw new Error(!create && /signups|not found|not allowed/i.test(error.message) ? "No account found for this number. Choose Sign up instead." : error.message);

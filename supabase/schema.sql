@@ -67,26 +67,38 @@ alter table public.posts enable row level security;
 alter table public.votes enable row level security;
 
 -- Profiles: everyone sees display names; people edit only their own name, never their role.
+drop policy if exists "profiles readable" on public.profiles;
 create policy "profiles readable" on public.profiles for select using (true);
+drop policy if exists "profiles insert own" on public.profiles;
 create policy "profiles insert own" on public.profiles for insert with check (id = auth.uid() and role = 'citizen');
+drop policy if exists "profiles update own" on public.profiles;
 create policy "profiles update own" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid() and role = (select role from public.profiles where id = auth.uid()));
 
 -- Posts: public and visible to all; private only to the author; moderators see everything.
+drop policy if exists "posts read" on public.posts;
 create policy "posts read" on public.posts for select using ((visibility = 'public' and hidden = false) or author_id = auth.uid() or public.is_mod());
-create policy "posts insert own" on public.posts for insert with check (author_id = auth.uid() and hidden = false and status = 'Open' and response is null and sample = false);
+drop policy if exists "posts insert own" on public.posts;
+create policy "posts insert own" on public.posts for insert with check (author_id = auth.uid() and hidden = false and status in ('Open', 'Submitted') and response is null and sample = false);
+drop policy if exists "posts moderate" on public.posts;
 create policy "posts moderate" on public.posts for update using (public.is_mod()) with check (public.is_mod());
+drop policy if exists "posts delete own or mod" on public.posts;
 create policy "posts delete own or mod" on public.posts for delete using (author_id = auth.uid() or public.is_mod());
 
 -- Votes: each person manages only their own votes.
+drop policy if exists "votes read own" on public.votes;
 create policy "votes read own" on public.votes for select using (user_id = auth.uid());
+drop policy if exists "votes insert own" on public.votes;
 create policy "votes insert own" on public.votes for insert with check (user_id = auth.uid());
+drop policy if exists "votes delete own" on public.votes;
 create policy "votes delete own" on public.votes for delete using (user_id = auth.uid());
 
 grant select on public.vote_counts to anon, authenticated;
 
 -- Realtime updates for the live feed.
-alter publication supabase_realtime add table public.posts;
-alter publication supabase_realtime add table public.votes;
+do $$ begin
+  begin alter publication supabase_realtime add table public.posts; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.votes; exception when duplicate_object then null; end;
+end $$;
 
 -- Make yourself an admin after your first sign in (replace the phone number):
 -- update public.profiles set role = 'admin' where id = (select id from auth.users where phone = '91XXXXXXXXXX');
@@ -96,7 +108,7 @@ alter table public.posts add column if not exists evidence jsonb not null defaul
 -- New posts cannot self approve their evidence.
 drop policy if exists "posts insert own" on public.posts;
 create policy "posts insert own" on public.posts for insert with check (
-  author_id = auth.uid() and hidden = false and status = 'Open' and response is null and sample = false
+  author_id = auth.uid() and hidden = false and status in ('Open', 'Submitted') and response is null and sample = false
   and not exists (select 1 from jsonb_array_elements(evidence) e where coalesce(e->>'status', 'pending') <> 'pending')
 );
 
@@ -106,10 +118,12 @@ values ('evidence', 'evidence', false, 20971520, array['image/jpeg', 'image/png'
 on conflict (id) do nothing;
 
 -- Upload only into your own folder: evidence/<your user id>/...
+drop policy if exists "evidence upload own" on storage.objects;
 create policy "evidence upload own" on storage.objects for insert to authenticated
   with check (bucket_id = 'evidence' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Read: the uploader, moderators, or anyone once a moderator approved it for public view on a visible post.
+drop policy if exists "evidence read" on storage.objects;
 create policy "evidence read" on storage.objects for select using (
   bucket_id = 'evidence' and (
     owner = auth.uid() or public.is_mod() or exists (
@@ -119,6 +133,7 @@ create policy "evidence read" on storage.objects for select using (
     )
   )
 );
+drop policy if exists "evidence delete own or mod" on storage.objects;
 create policy "evidence delete own or mod" on storage.objects for delete using (bucket_id = 'evidence' and (owner = auth.uid() or public.is_mod()));
 
 -- Language of the post when typed or spoken in an Indian language (BCP 47 code such as hi-IN).
@@ -133,8 +148,11 @@ create table if not exists public.profile_details (
   updated_at timestamptz not null default now()
 );
 alter table public.profile_details enable row level security;
+drop policy if exists "details read own" on public.profile_details;
 create policy "details read own" on public.profile_details for select using (id = auth.uid());
+drop policy if exists "details insert own" on public.profile_details;
 create policy "details insert own" on public.profile_details for insert with check (id = auth.uid());
+drop policy if exists "details update own" on public.profile_details;
 create policy "details update own" on public.profile_details for update using (id = auth.uid()) with check (id = auth.uid());
 
 -- Sign in providers to enable in Supabase > Authentication > Providers:

@@ -1,0 +1,24 @@
+\set ON_ERROR_STOP 0
+grant all on all tables in schema public to authenticated; grant select on public.cms_items to anon;
+insert into auth.users (id,email) values ('00000000-0000-0000-0000-0000000000c1','cm@x.in') on conflict do nothing;
+insert into public.profiles (id, display_name, role) values ('00000000-0000-0000-0000-0000000000c1','Cara','content_manager') on conflict (id) do update set role='content_manager';
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000c1';
+select 'C1 first import' t, imported=3 and status='success' ok from public.cms_import('app:data.js','[{"collection":"helplines","key":"112","data":{"n":"112","label":"Emergency"}},{"collection":"helplines","key":"100","data":{"n":"100","label":"Police"}},{"collection":"site","key":"seo","data":{"title":"OYOI"}}]');
+select 'C2 rerun unchanged' t, unchanged=3 and imported=0 ok from public.cms_import('app:data.js','[{"collection":"helplines","key":"112","data":{"n":"112","label":"Emergency"}},{"collection":"helplines","key":"100","data":{"n":"100","label":"Police"}},{"collection":"site","key":"seo","data":{"title":"OYOI"}}]');
+select public.cms_save((select id from cms_items where key='112'), '{"n":"112","label":"Emergency response (edited)"}', 'published', null, false, 'Editor wording');
+select 'C3 changed source is staged' t, changed=1 ok from public.cms_import('app:data.js','[{"collection":"helplines","key":"112","data":{"n":"112","label":"Emergency v2"}}]');
+select 'C4 editor text kept' t, data->>'label'='Emergency response (edited)' and staged_data->>'label'='Emergency v2' ok from cms_items where key='112';
+select 'C5 bad row reported' t, failed=1 and status='partial' ok from public.cms_import('app:x','[{"collection":"helplines","key":"999","data":{"n":"999"}},{"collection":"nope","key":"k","data":{}}]');
+select public.cms_accept_staged((select id from cms_items where key='112'));
+select 'C6 accepted staged' t, data->>'label'='Emergency v2' and staged_data is null ok from cms_items where key='112';
+select public.cms_rollback((select id from cms_items where key='112'), 2);
+select 'C7 rollback' t, data->>'label'='Emergency response (edited)' ok from cms_items where key='112';
+select 'C8 revisions' t, count(*)>=4 ok from cms_revisions where item_id=(select id from cms_items where key='112');
+select public.cms_save((select id from cms_items where key='100'), null, 'published', now()+interval '2 days');
+delete from cms_revisions; select 'C9 revisions append only' t, count(*)>0 ok from cms_revisions;
+reset role; set role anon; set request.jwt.claim.sub = '';
+select 'C10 public sees only live' t, string_agg(key, ',' order by key)='112' ok from cms_items;
+reset role; set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+update cms_items set data='{"hacked":true}'; select 'C11 citizen cannot edit' t, count(*)=0 ok from cms_items where data ? 'hacked';
+select public.cms_import('app:data.js','[]');
